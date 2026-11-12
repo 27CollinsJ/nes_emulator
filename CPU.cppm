@@ -11,7 +11,7 @@ module;
 
 export module CPU_M;
 
-import OPCODE_TABLE_M;
+import Opcode_Table_M;
 import CPUBus_M;
 
 enum StatusRegisterMask
@@ -60,11 +60,6 @@ export class CPU
         return bus.read(address);
     }
 
-    static Instruction decode_opcode(uint8_t opcode)
-    {
-        return OPCODES[(opcode >> 4) & 0x0F][opcode & 0x0F];
-    }
-
 public:
     CPU(CPUBus& bus) : bus(bus)
     {
@@ -90,7 +85,7 @@ public:
         switch (state)
         {
         case FETCH: {
-            currentInstruction = decode_opcode(read_PC());
+            // currentInstruction = decode_opcode(read_PC());
             // this takes the full cycle so skip the rest
             break;
         }

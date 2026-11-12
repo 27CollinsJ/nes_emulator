@@ -1,12 +1,14 @@
 module;
 
+#define OPCODE_TABLE_PATH "OpcodeTable.txt"
+
 #include <cstdint>
 #include <fstream>
 #include <iosfwd>
 #include <print>
 #include <unordered_map>
 
-export module OPCODE_TABLE_M;
+export module Opcode_Table_M;
 export enum Mnemonic
 {
      LDA, STA, LDX, STX, LDY, STY, // Access
@@ -46,19 +48,26 @@ export struct Instruction
 export class OpcodeTable
 {
     std::unordered_map<uint8_t, Instruction> map;
-
-
-
-
 public:
+    // i'm going high budget here, singleton pattern
+
+    static const OpcodeTable& getInstance()
+    {
+        static OpcodeTable instance(OPCODE_TABLE_PATH);
+        return instance;
+    }
+
+    Instruction decode_opcode(uint8_t opcode)
+    {
+        // super duper unsafe
+        return map[opcode];
+    }
+private:
     OpcodeTable(char* path)
     {
-        std::unordered_map<uint8_t, Instruction> map = std::unordered_map<uint8_t, Instruction>;
         std::ifstream stream = std::ifstream(path);
         std::string token;
         uint8_t token_type = 0;
-
-        uint8_t code;
         Instruction instr;
         while (stream >> token)
         {
@@ -67,12 +76,13 @@ public:
                 // opcode
             case 0:
                 {
-                    code = stoi(token);
+                    instr.opcode = std::stoi(token, nullptr, 16);
                     break;
                 }
                 // mnemonic
             case 1:
                 {
+                    // kill me now
                     static std::unordered_map<std::string, Mnemonic> mnemonic_map = {
                         { "LDA", LDA },
                         { "STA", STA },
@@ -106,14 +116,35 @@ public:
                         { "BCC", BCC },
                         { "BCS", BCS },
                         { "BEQ", BEQ },
-
-
-
-
-
-
-
+                        { "BNE", BNE },
+                        { "BPL", BPL },
+                        { "BMI", BMI },
+                        { "BVC", BVC },
+                        { "BVS", BVS },
+                        { "JMP", JMP },
+                        { "JSR", JSR },
+                        { "RTS", RTS },
+                        { "BRK", BRK },
+                        { "RTI", RTI },
+                        { "PHA", PHA },
+                        { "PLA", PLA },
+                        { "PHP", PHP },
+                        { "PLP", PLP },
+                        { "TXS", TXS },
+                        { "TSX", TSX },
+                        { "CLC", CLC },
+                        { "SEC", SEC },
+                        { "CLI", CLI },
+                        { "SEI", SEI },
+                        { "CLD", CLD },
+                        { "SED", SED },
+                        { "CLV", CLV },
+                        { "NOP", NOP }
                     };
+                    auto mnemonic = mnemonic_map[token];
+                    // they're saying its the least safe code ever made
+                    instr.mnemonic = mnemonic;
+                    break;
                 }
             // mode
             case 2:
@@ -134,17 +165,19 @@ public:
                         { "zpg,Y", ZERO_PAGE_Y}
                     };
                     auto mode = mode_map[token];
+                    instr.addressing_mode = mode;
+                    break;
                 }
 
-            default: { continue; }
+            default: { break; }
             }
-
 
 
             token_type++;
             if (token_type == 6)
             {
                 token_type = 0;
+                map[instr.opcode] = instr;
             }
         }
     }

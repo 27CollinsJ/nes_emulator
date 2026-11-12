@@ -13,7 +13,7 @@ module;
 #include <optional>
 #include <string>
 
-export module CARTRIDGE_M;
+export module Cartridge_M;
 
 enum ConsoleType
 {

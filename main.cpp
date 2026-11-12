@@ -5,8 +5,9 @@
 import WRAM_M;
 import CPUBus_M;
 import CPU_M;
-import CARTRIDGE_M;
-import OPCODE_TABLE_M;
+import Cartridge_M;
+import Opcode_Table_M;
+
 int main()
 {
     auto loaded_cart = CartridgeFactory::from_file("SMB.nes");
@@ -16,5 +17,7 @@ int main()
     }
     auto smb = loaded_cart.value();
 
-    auto table = new OpcodeTable("OpcodeTable.txt");
+    auto table = OpcodeTable::getInstance();
+
+
 }

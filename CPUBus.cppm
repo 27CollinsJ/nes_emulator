@@ -9,7 +9,7 @@ module;
 export module CPUBus_M;
 
 import WRAM_M;
-import CARTRIDGE_M;
+import Cartridge_M;
 
 
 enum class DataUnit
