@@ -10,7 +10,6 @@ module;
 #include <memory>
 #include <vector>
 #include <print>
-#include <optional>
 #include <string>
 
 export module Cartridge_M;
@@ -133,12 +132,13 @@ public:
 export class CartridgeFactory
 {
 public:
-    static std::optional<std::shared_ptr<Cartridge>> from_file(const std::string& filename)
+    static std::unique_ptr<Cartridge> from_file(const std::string& filename)
     {
         std::ifstream romData(filename, std::ios::binary);
         if (!romData.is_open())
         {
             std::println(stderr, "Error opening file {}", filename);
+            return {};
         }
         std::vector<char> rawHeader(16);
         romData.read(rawHeader.data(), 16);
@@ -244,7 +244,7 @@ public:
         {
         case NROM:
             {
-                return std::make_shared<Cartridge_NROM>(Cartridge_NROM(prg_rom_bank_count, prg_ram_nvram_size, prg_bytes));
+                return std::make_unique<Cartridge_NROM>(Cartridge_NROM(prg_rom_bank_count, prg_ram_nvram_size, prg_bytes));
             }
         }
     }

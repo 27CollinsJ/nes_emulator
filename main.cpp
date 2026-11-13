@@ -11,13 +11,21 @@ import Opcode_Table_M;
 int main()
 {
     auto loaded_cart = CartridgeFactory::from_file("SMB.nes");
-    if (!loaded_cart.has_value())
+    if (loaded_cart == nullptr)
     {
         std::println(stderr, "Failed to load cart");
     }
-    auto smb = loaded_cart.value();
+    auto smb = std::move(loaded_cart);
+    auto wram = WRAM();
+    auto bus = CPUBus(wram, *smb);
 
-    auto table = OpcodeTable::getInstance();
+    auto cpu = CPU(bus);
 
+    cpu.init();
+
+    for (int i = 0; i < 20; i++)
+    {
+        cpu.cycle();
+    }
 
 }

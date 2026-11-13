@@ -51,7 +51,7 @@ export class OpcodeTable
 public:
     // i'm going high budget here, singleton pattern
 
-    static const OpcodeTable& getInstance()
+    static const OpcodeTable& get_instance()
     {
         static OpcodeTable instance(OPCODE_TABLE_PATH);
         return instance;

@@ -29,7 +29,7 @@ struct AddressDestination
 export class CPUBus
 {
     WRAM& wram;
-    std::shared_ptr<Cartridge> cart;
+    Cartridge& cart;
 
     static AddressDestination decode_address(uint16_t const & address)
     {
@@ -62,7 +62,7 @@ export class CPUBus
 
 public:
     // i don't like c++
-    explicit CPUBus(WRAM& wram) : wram(wram){}
+    explicit CPUBus(WRAM& wram, Cartridge& cart) : wram(wram), cart(cart){}
 
     uint8_t read(uint16_t address)
     {
@@ -73,7 +73,7 @@ public:
             return wram.read_byte(dest.address);
         } else if (dest.unit == DataUnit::CARTRIDGE)
         {
-            return cart->read_prg(address);
+            return cart.read_prg(address);
         }
         else {return 0;}
     }
@@ -85,10 +85,10 @@ public:
             wram.write_byte(dest.address, value);
         } else if (dest.unit == DataUnit::CARTRIDGE)
         {
-            cart->write_prg(address, value);
+            cart.write_prg(address, value);
         }
     }
-    void swap_cart(std::shared_ptr<Cartridge> cart)
+    void swap_cart(Cartridge& cart)
     {
         this->cart = cart;
     }
