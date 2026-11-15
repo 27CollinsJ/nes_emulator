@@ -8,7 +8,6 @@ module;
 #include <print>
 
 
-
 export module CPU_M;
 
 import Opcode_Table_M;
@@ -63,7 +62,9 @@ export class CPU
     }
 
 public:
-    CPU(CPUBus& bus) : bus(bus){}
+    CPU(CPUBus& bus) : bus(bus)
+    {
+    }
 
     void init()
     {
@@ -84,12 +85,42 @@ public:
     {
         switch (state)
         {
-        case FETCH: {
-            OpcodeTable table = OpcodeTable::get_instance();
-            currentInstruction = table.decode_opcode(read_PC());
-            // this takes the full cycle so skip the rest
-            break;
-        }
+        case FETCH:
+            {
+                OpcodeTable table = OpcodeTable::get_instance();
+
+                currentInstruction = table.decode_opcode(read_PC());
+                // this takes the full cycle so skip the rest
+                state = ADDRESS;
+                break;
+            }
+        case ADDRESS:
+            {
+                auto mode_ptr = mode_lookup(currentInstruction.addressing_mode);
+                // i hate this syntax
+                // and thats with ligatures, probably even worse with standard monospace
+                if (!(this->*mode_ptr)())
+                {
+                    microstate++;
+                    break;
+                }
+                // it returned true so we're fine to fall through to the next bit
+                // NI though so back to fetch
+                state = EXECUTE;
+                microstate = 0;
+            }
+        // same as above
+        case EXECUTE:
+            {
+                auto mnemonic_ptr = mnemonic_lookup(currentInstruction.mnemonic);
+                if (!(this->*mnemonic_ptr)())
+                {
+                    microstate++;
+                    break;
+                }
+                state = FETCH;
+                microstate = 0;
+            }
         default: { std::println(stderr, "Not implemented"); }
         }
     }
@@ -99,7 +130,7 @@ private:
     // when it returns true we move on to the next step in execution
 
 
-    bool implied()
+    bool implicit()
     {
         // nothing to see here, move along
         return true;
@@ -121,13 +152,53 @@ private:
 
     bool zero_page()
     {
-        switch (microstate) {
-            case 0:
-                {
-                    retreived_address = read_PC();
-                    retreived_operand = read(retreived_address);
-                    return false;
-                }
+        switch (microstate)
+        {
+        case 0:
+            {
+                retreived_address = read_PC();
+                retreived_operand = read(retreived_address);
+                return false;
+            }
+        default:
+            return true;
+        }
+    }
+
+
+    bool zero_page_x()
+    {
+        switch (microstate)
+        {
+        case 0:
+            {
+                retreived_address = read_PC();
+                return false;
+            }
+        case 1:
+            {
+                retreived_address = (retreived_address + X) & 0xFF;
+                retreived_operand = read(retreived_address);
+            }
+        default:
+            return true;
+        }
+    }
+
+    bool zero_page_y()
+    {
+        switch (microstate)
+        {
+        case 0:
+            {
+                retreived_address = read_PC();
+                return false;
+            }
+        case 1:
+            {
+                retreived_address = (retreived_address + Y) & 0xFF;
+                retreived_operand = read(retreived_address);
+            }
         default:
             return true;
         }
@@ -147,14 +218,83 @@ private:
                 retreived_address = retreived_address | (read_PC() << 8);
                 return false;
             }
-        case 2:
+        default:
             {
                 retreived_operand = read(retreived_address);
+                return true;
             }
         }
     }
-    // the others are harder and im lazy, not doing it yet
 
+    bool absolute_x()
+    {
+        switch (microstate)
+        {
+        case 0:
+            {
+                uint8_t low = read_PC();
+                temporary_bytes[0] = 0;
+                if (low + X > 0xFF)
+                {
+                    // marker to skip a cycle
+                    temporary_bytes[0] = 1;
+                }
+                retreived_address = low;
+                return false;
+            }
+        case 1:
+            {
+                retreived_address = (retreived_address | (read_PC() << 8)) + X;
+                return false;
+            }
+        default:
+            {
+                if (temporary_bytes[0] == 1)
+                {
+                    temporary_bytes[0] = 0;
+                    return false;
+                }
+                retreived_operand = read(retreived_address);
+                return true;
+            }
+        }
+    }
+
+    bool absolute_y()
+    {
+        switch (microstate)
+        {
+        case 0:
+            {
+                uint8_t low = read_PC();
+                temporary_bytes[0] = 0;
+                if (low + Y > 0xFF)
+                {
+                    // marker to skip a cycle
+                    temporary_bytes[0] = 1;
+                }
+                retreived_address = low;
+                return false;
+            }
+        case 1:
+            {
+                retreived_address = (retreived_address | (read_PC() << 8)) + Y;
+                return false;
+            }
+        default:
+            {
+                if (temporary_bytes[0] == 1)
+                {
+                    temporary_bytes[0] = 0;
+                    return false;
+                }
+                retreived_operand = read(retreived_address);
+                return true;
+            }
+        }
+    }
+
+    // the others are harder and im lazy, not doing it yet
 
 
     bool lda()
@@ -233,4 +373,51 @@ private:
         return true;
     }
 
+    // ahh scary function pointers
+    // takes an addressing mode enum and gets the right function
+    bool (CPU::* mode_lookup(AddressingMode mode))()
+    {
+        switch (mode)
+        {
+        case IMPLICIT: { return &CPU::implicit; }
+        case ACCUMULATOR: { return &CPU::accumulator; }
+        case IMMEDIATE: { return &CPU::immediate; }
+        case ZERO_PAGE: { return &CPU::zero_page; }
+        case ABSOLUTE: { return &CPU::absolute; }
+        case ZERO_PAGE_X: { return &CPU::zero_page_x; }
+        case ZERO_PAGE_Y: { return &CPU::zero_page_y; }
+        case ABSOLUTE_X: { return &CPU::absolute_x; }
+        case ABSOLUTE_Y: { return &CPU::absolute_y; }
+
+        default:
+            {
+                std::println(stderr, "Not implemented");
+                return &CPU::implicit;
+            }
+        }
+    }
+
+    // same again
+    bool (CPU::* mnemonic_lookup(Mnemonic mnemonic))()
+    {
+        switch (mnemonic)
+        {
+        case LDA: { return &CPU::lda; }
+        case LDX: { return &CPU::ldx; }
+        case LDY: { return &CPU::ldy; }
+        case TAX: { return &CPU::tax; }
+        case TXA: { return &CPU::txa; }
+        case TAY: { return &CPU::tay; }
+        case TYA: { return &CPU::tya; }
+
+        case SEI: { return &CPU::sei; }
+
+        case NOP: { return &CPU::nop; }
+        default:
+            {
+                std::println(stderr, "Not implemented");
+                return &CPU::nop;
+            }
+        }
+    }
 };
