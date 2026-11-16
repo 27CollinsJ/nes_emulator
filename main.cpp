@@ -10,14 +10,14 @@ import Opcode_Table_M;
 
 int main()
 {
-    auto loaded_cart = CartridgeFactory::from_file("SMB.nes");
+    auto loaded_cart = CartridgeFactory::from_assembly_file("test.S");
     if (loaded_cart == nullptr)
     {
         std::println(stderr, "Failed to load cart");
     }
-    auto smb = std::move(loaded_cart);
+    auto cart = std::move(loaded_cart);
     auto wram = WRAM();
-    auto bus = CPUBus(wram, *smb);
+    auto bus = CPUBus(wram, *cart);
 
     auto cpu = CPU(bus);
 

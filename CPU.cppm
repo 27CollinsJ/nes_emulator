@@ -5,6 +5,7 @@
 module;
 
 #include <cstdint>
+#include <future>
 #include <print>
 
 
@@ -45,16 +46,18 @@ export class CPU
 
     CPUBus& bus;
 
-    Instruction currentInstruction;
-    CPUState state;
+    Instruction currentInstruction = {};
+    CPUState state = FETCH;
     // used for instructions where the current state part needs multiple cycles
-    uint8_t microstate;
+    uint8_t microstate = 0;
 
-    uint8_t retreived_operand;
+    uint8_t retreived_operand = 0;
     // easier to just store both of these
-    uint16_t retreived_address;
+    uint16_t retreived_address = 0;
 
-    uint16_t temporary_bytes[16];
+    uint16_t temporary_bytes[16] = {};
+
+    bool was_page_cross = false;
 
     uint8_t read(uint16_t address)
     {
@@ -72,6 +75,7 @@ public:
         uint8_t resetVectorLow = read(0xFFFC);
         PC = resetVectorHigh | resetVectorLow;
         state = FETCH;
+        microstate = 0;
     }
 
     uint8_t read_PC()
@@ -87,7 +91,7 @@ public:
         {
         case FETCH:
             {
-                OpcodeTable table = OpcodeTable::get_instance();
+                OpcodeTable& table = OpcodeTable::get_instance();
 
                 currentInstruction = table.decode_opcode(read_PC());
                 // this takes the full cycle so skip the rest
@@ -120,6 +124,7 @@ public:
                 }
                 state = FETCH;
                 microstate = 0;
+                break;
             }
         default: { std::println(stderr, "Not implemented"); }
         }
@@ -128,7 +133,7 @@ public:
 private:
     // every instruction implementation returns false when the cycle needs to end and it still needs to continue
     // when it returns true we move on to the next step in execution
-
+    // most of these are entirely inaccurate bus-wise, but who cares?
 
     bool implicit()
     {
@@ -165,7 +170,6 @@ private:
         }
     }
 
-
     bool zero_page_x()
     {
         switch (microstate)
@@ -179,6 +183,7 @@ private:
             {
                 retreived_address = (retreived_address + X) & 0xFF;
                 retreived_operand = read(retreived_address);
+                return false;
             }
         default:
             return true;
@@ -198,6 +203,7 @@ private:
             {
                 retreived_address = (retreived_address + Y) & 0xFF;
                 retreived_operand = read(retreived_address);
+                return false;
             }
         default:
             return true;
@@ -239,6 +245,12 @@ private:
                     // marker to skip a cycle
                     temporary_bytes[0] = 1;
                 }
+                // we need to skip the cycle if its a write too
+                OpcodeTable& table = OpcodeTable::get_instance();
+                if (table.is_write(currentInstruction.mnemonic))
+                {
+                    temporary_bytes[0] = 1;
+                }
                 retreived_address = low;
                 return false;
             }
@@ -273,6 +285,12 @@ private:
                     // marker to skip a cycle
                     temporary_bytes[0] = 1;
                 }
+                // we need to skip the cycle if its a write too
+                OpcodeTable& table = OpcodeTable::get_instance();
+                if (table.is_write(currentInstruction.mnemonic))
+                {
+                    temporary_bytes[0] = 1;
+                }
                 retreived_address = low;
                 return false;
             }
@@ -294,6 +312,41 @@ private:
         }
     }
 
+    bool relative()
+    {
+        retreived_operand = read_PC();
+        return true;
+    }
+
+    bool indirect()
+    {
+        switch (microstate)
+        {
+        case 0:
+            {
+                retreived_address = read_PC();
+                return false;
+            }
+        case 1:
+            {
+                retreived_address |= read_PC() << 8;
+                return false;
+            }
+        case 2:
+            {
+                temporary_bytes[0] = read(retreived_address);
+                return false;
+            }
+        default:
+            {
+                // the nes was poorly designed and is full of bugs. this bit fixes the page wrap bug
+                retreived_address = (retreived_address & 0xFF00) | ((retreived_address + 1) & 0x00FF);
+                retreived_address = read(retreived_address) << 8 | temporary_bytes[0];
+                return true;
+            }
+        }
+    }
+
     // the others are harder and im lazy, not doing it yet
 
 
@@ -301,7 +354,7 @@ private:
     {
         A = retreived_operand;
         if (A == 0x00) { P = P | 0x02; }
-        if (A & 0x80 != 0) { P = P | 0xF0; }
+        if ((A & 0x80) != 0) { P = P | 0x80; }
         return true;
     }
 
@@ -309,7 +362,7 @@ private:
     {
         X = retreived_operand;
         if (X == 0x00) { P = P | 0x02; }
-        if (X & 0x80 != 0) { P = P | 0xF0; }
+        if ((X & 0x80) != 0) { P = P | 0x80; }
         return true;
     }
 
@@ -317,7 +370,7 @@ private:
     {
         Y = retreived_operand;
         if (Y == 0x00) { P = P | 0x02; }
-        if (Y & 0x80 != 0) { P = P | 0xF0; }
+        if ((Y & 0x80) != 0) { P = P | 0x80; }
         return true;
     }
 
@@ -326,7 +379,7 @@ private:
         X = A;
 
         if (A == 0x00) { P = P | 0x02; }
-        if (A & 0x80 != 0) { P = P | 0xF0; }
+        if ((A & 0x80) != 0) { P = P | 0x80; }
 
         return true;
     }
@@ -336,7 +389,7 @@ private:
         A = X;
 
         if (A == 0x00) { P = P | 0x02; }
-        if (A & 0x80 != 0) { P = P | 0xF0; }
+        if ((A & 0x80) != 0) { P = P | 0x80; }
 
         return true;
     }
@@ -346,7 +399,7 @@ private:
         Y = A;
 
         if (A == 0x00) { P = P | 0x02; }
-        if (A & 0x80 != 0) { P = P | 0xF0; }
+        if ((A & 0x80) != 0) { P = P | 0x80; }
 
         return true;
     }
@@ -356,8 +409,26 @@ private:
         A = Y;
 
         if (A == 0x00) { P = P | 0x02; }
-        if (A & 0x80 != 0) { P = P | 0xF0; }
+        if ((A & 0x80) != 0) { P = P | 0x80; }
 
+        return true;
+    }
+
+    bool sta()
+    {
+        bus.write(retreived_address, A);
+        return true;
+    }
+
+    bool stx()
+    {
+        bus.write(retreived_address, X);
+        return true;
+    }
+
+    bool sty()
+    {
+        bus.write(retreived_address, Y);
         return true;
     }
 
@@ -373,9 +444,40 @@ private:
         return true;
     }
 
+    bool jmp()
+    {
+        PC = retreived_address;
+        return true;
+    }
+
+
+    bool cal()
+    {
+        switch (retreived_operand)
+        {
+        case 1:
+            {
+                std::println("A: {}", A);
+                break;
+            }
+        case 2:
+            {
+                std::println("X: {}", X);
+                break;
+            }
+        case 3:
+            {
+                std::println("Y: {}", Y);
+                break;
+            }
+        default: { std::println(stderr, "Invalid syscall {}", retreived_operand); }
+        }
+        return true;
+    }
+
     // ahh scary function pointers
     // takes an addressing mode enum and gets the right function
-    bool (CPU::* mode_lookup(AddressingMode mode))()
+    static bool (CPU::* mode_lookup(AddressingMode mode))()
     {
         switch (mode)
         {
@@ -398,7 +500,7 @@ private:
     }
 
     // same again
-    bool (CPU::* mnemonic_lookup(Mnemonic mnemonic))()
+    static bool (CPU::* mnemonic_lookup(Mnemonic mnemonic))()
     {
         switch (mnemonic)
         {
@@ -413,6 +515,7 @@ private:
         case SEI: { return &CPU::sei; }
 
         case NOP: { return &CPU::nop; }
+        case CAL: { return &CPU::cal; }
         default:
             {
                 std::println(stderr, "Not implemented");

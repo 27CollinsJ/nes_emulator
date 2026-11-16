@@ -21,7 +21,7 @@ export enum Mnemonic
      JMP, JSR, RTS, BRK, RTI, // Jump
      PHA, PLA, PHP, PLP, TXS, TSX, // Stack
      CLC, SEC, CLI, SEI, CLD, SED, CLV, // Flags
-     NOP // Other
+     NOP, CAL // Other
 };
 
 export enum AddressingMode
@@ -51,7 +51,7 @@ export class OpcodeTable
 public:
     // i'm going high budget here, singleton pattern
 
-    static const OpcodeTable& get_instance()
+    static OpcodeTable& get_instance()
     {
         static OpcodeTable instance(OPCODE_TABLE_PATH);
         return instance;
@@ -61,6 +61,23 @@ public:
     {
         // super duper unsafe
         return map[opcode];
+    }
+
+    bool is_write(Mnemonic mnemonic)
+    {
+        switch (mnemonic)
+        {
+        case STA: { return true; }
+        case STX: { return true; }
+        case STY: { return true; }
+        case ASL: { return true; }
+        case DEC: { return true; }
+        case INC: { return true; }
+        case LSR: { return true; }
+        case ROL: { return true; }
+        case ROR: { return true; }
+        default: { return false; }
+        }
     }
 private:
     OpcodeTable(char* path)
@@ -139,7 +156,8 @@ private:
                         { "CLD", CLD },
                         { "SED", SED },
                         { "CLV", CLV },
-                        { "NOP", NOP }
+                        { "NOP", NOP },
+                        { "CAL", CAL }
                     };
                     auto mnemonic = mnemonic_map[token];
                     // they're saying its the least safe code ever made

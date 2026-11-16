@@ -5,6 +5,7 @@
 module;
 
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iosfwd>
 #include <memory>
@@ -14,6 +15,8 @@ module;
 
 export module Cartridge_M;
 
+// 99% of this isn't used, but it stays in case i need it eventually
+// for the NEA bounds im just doing NROM and no PPU
 enum ConsoleType
 {
     NES_FAMICOM = 0,
@@ -247,5 +250,52 @@ public:
                 return std::make_unique<Cartridge_NROM>(Cartridge_NROM(prg_rom_bank_count, prg_ram_nvram_size, prg_bytes));
             }
         }
+    }
+
+    // assumes the file has no header and is a pure binary straight from ca65
+    // only works with single files of code, meant for testing
+    // assumes a super basic file and whacks the reset vector to be the first byte of prg rom
+
+    // this is really badly written
+    static std::unique_ptr<Cartridge> from_binary_file(const std::string& filename)
+    {
+        std::ifstream romData(filename, std::ios::binary);
+        if (!romData.is_open())
+        {
+            std::println(stderr, "Error opening file {}", filename);
+            return {};
+        }
+        std::vector<uint8_t> prg_bytes(32 * 1024);
+        romData.read(reinterpret_cast<char*>(prg_bytes.data()), 32 * 1024);
+
+        return std::make_unique<Cartridge_NROM>(Cartridge_NROM(2, 0, prg_bytes));
+    }
+
+    // same as before but calls ca65 and ld65 first
+    // fun fact: also very badly written!
+    static std::unique_ptr<Cartridge> from_assembly_file(const std::string& filename)
+    {
+        std::system(std::format(
+            "ca65 \"{}\" -o \"{}\"",
+            filename,
+            std::filesystem::path(filename).replace_extension(".o").string()).c_str()
+            );
+        std::system(std::format(
+            "ld65 \"{}\" -o \"{}\" -C basic_ld65.cfg",
+            std::filesystem::path(filename).replace_extension(".o").string(),
+            std::filesystem::path(filename).replace_extension(".elf").string()).c_str()
+            );
+
+
+        std::ifstream romData(std::filesystem::path(filename).replace_extension(".elf"), std::ios::binary);
+        if (!romData.is_open())
+        {
+            std::println(stderr, "Error opening file {}", filename);
+            return {};
+        }
+        std::vector<uint8_t> prg_bytes(32 * 1024);
+        romData.read(reinterpret_cast<char*>(prg_bytes.data()), 32 * 1024);
+
+        return std::make_unique<Cartridge_NROM>(Cartridge_NROM(2, 0, prg_bytes));
     }
 };

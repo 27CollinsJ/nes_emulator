@@ -149,3 +149,4 @@
 0xf9       SBC        abs,Y      SVZC       4*         3
 0xfd       SBC        abs,X      SVZC       4*         3
 0xfe       INC        abs,X      SZ         7          3
+0xff       CAL        #        NOFLAG     NOFLAG     NOFLAG
