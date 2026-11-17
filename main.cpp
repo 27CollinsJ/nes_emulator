@@ -23,7 +23,7 @@ int main()
 
     cpu.init();
 
-    for (int i = 0; i < 400; i++)
+    for (int i = 0; i < 4000; i++)
     {
         cpu.cycle();
     }

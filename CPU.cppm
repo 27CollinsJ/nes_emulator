@@ -353,24 +353,24 @@ private:
     bool lda()
     {
         A = retreived_operand;
-        if (A == 0x00) { P = P | 0x02; }
-        if ((A & 0x80) != 0) { P = P | 0x80; }
+        if (A == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((A & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
         return true;
     }
 
     bool ldx()
     {
         X = retreived_operand;
-        if (X == 0x00) { P = P | 0x02; }
-        if ((X & 0x80) != 0) { P = P | 0x80; }
+        if (X == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((X & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
         return true;
     }
 
     bool ldy()
     {
         Y = retreived_operand;
-        if (Y == 0x00) { P = P | 0x02; }
-        if ((Y & 0x80) != 0) { P = P | 0x80; }
+        if (Y == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((Y & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
         return true;
     }
 
@@ -378,8 +378,8 @@ private:
     {
         X = A;
 
-        if (A == 0x00) { P = P | 0x02; }
-        if ((A & 0x80) != 0) { P = P | 0x80; }
+        if (A == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((A & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
 
         return true;
     }
@@ -388,8 +388,8 @@ private:
     {
         A = X;
 
-        if (A == 0x00) { P = P | 0x02; }
-        if ((A & 0x80) != 0) { P = P | 0x80; }
+        if (A == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((A & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
 
         return true;
     }
@@ -398,8 +398,8 @@ private:
     {
         Y = A;
 
-        if (A == 0x00) { P = P | 0x02; }
-        if ((A & 0x80) != 0) { P = P | 0x80; }
+        if (A == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((A & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
 
         return true;
     }
@@ -408,8 +408,8 @@ private:
     {
         A = Y;
 
-        if (A == 0x00) { P = P | 0x02; }
-        if ((A & 0x80) != 0) { P = P | 0x80; }
+        if (A == 0x00) { P = P | 0x02; } else { P = P & ~0x02; }
+        if ((A & 0x80) != 0) { P = P | 0x80; } else { P = P & ~0x80; }
 
         return true;
     }
@@ -470,6 +470,21 @@ private:
                 std::println("Y: {}", Y);
                 break;
             }
+        case 4:
+            {
+                std::println("A: {:#04x}, X: {:#04x}, Y: {:#04x}, SP: {:#04x}, PC: {:#04x}, P: {:#010b}", A, X, Y, SP, PC, P);
+                break;
+            }
+        case 5:
+            {
+                std::println("Address {:#04x}{:02X} {:#04x}", Y, X, bus.read(Y << 8 | X));
+                break;
+            }
+        case 6:
+            {
+                exit(0);
+                break;
+            }
         default: { std::println(stderr, "Invalid syscall {}", retreived_operand); }
         }
         return true;
@@ -511,6 +526,10 @@ private:
         case TXA: { return &CPU::txa; }
         case TAY: { return &CPU::tay; }
         case TYA: { return &CPU::tya; }
+
+        case STA: { return &CPU::sta; }
+        case STX: { return &CPU::stx; }
+        case STY: { return &CPU::sty; }
 
         case SEI: { return &CPU::sei; }
 
